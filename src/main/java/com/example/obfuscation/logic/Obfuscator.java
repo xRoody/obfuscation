@@ -22,6 +22,13 @@ public class Obfuscator {
             - encode vars names - true by default
     */
     private Integer options = 7; // by default 0...0111
+    private String deadCode=";let m=10;" +
+            "let e=\"simple\";" +
+            "while(m>5){" +
+            "e=e+'hit';" +
+            "m--;" +
+            "};" +
+            "console.log(e)";
 
     public void setEFN(boolean b) {
         options = b ? options | 2 : options & (Integer.MAX_VALUE - 2);
@@ -40,7 +47,7 @@ public class Obfuscator {
     }
 
     public String obfuscate(String target) {
-        return beforeEnd(removeSpaces(encodeFunctionsParams(encodeSimpleVarsNames(encodeFunctionNames(prepare(target))))));
+        return beforeEnd(removeSpaces(addDeadCode(encodeFunctionsParams(encodeSimpleVarsNames(encodeFunctionNames(prepare(target)))))));
     }
 
     private String beforeEnd(String target) {
@@ -54,15 +61,32 @@ public class Obfuscator {
         target = target.trim();
         Matcher m = Pattern.compile("[\"][^\"]*[\"]|['][^']*[']|[`][^`]*[`]").matcher(target);
         if (m.find()) {
-            stringStorage.add(m.group());
-            target = target.replaceAll(m.group(), "*=*" + (stringStorage.indexOf(m.group()))); //to find [^`'"][*=*][\d]+[^`'"]
+            String base=m.group();
+            String end=String.format(toUnicode(base));
+            stringStorage.add(end);
+            target = target.replaceAll(base, "*=*" + (stringStorage.indexOf(end))); //to find [^`'"][*=*][\d]+[^`'"]
             for (MatchResult result : m.results().toList()) {
-                String s = result.group();
-                stringStorage.add(s);
-                target = target.replace(s, "*=*" + (stringStorage.indexOf(s)));
+                base = result.group();
+                end=String.format(toUnicode(base));
+                stringStorage.add(end);
+                target = target.replace(base, "*=*" + (stringStorage.indexOf(end)));
             }
         }
         return target;
+    }
+
+    private String toUnicode(String s){
+        StringBuilder stringBuilder=new StringBuilder();
+        stringBuilder.append("'");
+        for(int i=0; i<s.length(); i++){
+            stringBuilder.append("\\\\u").append(Integer.toHexString(s.charAt(i) | 0x10000).substring(1));
+        }
+        return stringBuilder.append("'").toString();
+    }
+
+    private String addDeadCode(String s){
+        String deadInsertPattern="(?<=(return[\\s]{1,10000}.{1,10000}))([\\s]*|[;][\\s]*)(?=[}])";
+        return s.replaceAll(deadInsertPattern, deadCode);
     }
 
     private String removeSpaces(String target) {
